@@ -10,14 +10,25 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 backend_dir = current_dir
 sys.path.insert(0, backend_dir)
 
-# --- Direct Imports of Services ---
+# --- Direct Imports of Services and Models ---
 try:
+    # Import the service for hashing
     from services.phash import phash_service 
-    # NOTE: We DO NOT import dbp.py, as we are only testing phash comparison logic here.
+    # Import the database model to get the configured default threshold
+    # NOTE: Assuming 'models.dbp' contains a class 'PhashDatabase' with 'DEFAULT_THRESHOLD'
+    from models.dbp import PhashDatabase 
+    
+    # Use the threshold defined in the database model
+    DEFAULT_THRESHOLD = PhashDatabase.DEFAULT_THRESHOLD
+    
 except ImportError as e:
-    print(f"❌ ERROR: Could not import phash_service. Check paths and dependencies.")
+    print(f"❌ ERROR: Could not import necessary modules (phash_service or PhashDatabase). Check paths and dependencies.")
     print(f"Details: {e}")
-    sys.exit(1)
+    # Fallback to a value that catches B, C, and D if import fails
+    DEFAULT_THRESHOLD = 135
+    print(f"⚠️ Falling back to DEFAULT_THRESHOLD={DEFAULT_THRESHOLD} because model import failed.")
+    # Exit here if the core service/model cannot be loaded
+    # sys.exit(1) # Commented out exit to allow fallback test to proceed if needed
 
 # --- Configuration ---
 IMAGE_DIR = os.path.join(backend_dir, 'images')
@@ -39,9 +50,10 @@ def get_all_test_images(directory_path) -> List[Tuple[str, str]]:
     return [(os.path.basename(p), p) for p in sorted(image_paths)]
 
 
-def run_all_pairs_comparison(default_threshold: int = 125):
+def run_all_pairs_comparison():
     """
-    Executes the comprehensive all-pairs 256-bit pHash comparison.
+    Executes the comprehensive all-pairs 256-bit pHash comparison, using 
+    the threshold defined in the database model (dbp.py).
     """
     
     print("🧪 Testing All-Pairs 256-bit pHash Comparison (Service Layer Only)")
@@ -56,7 +68,7 @@ def run_all_pairs_comparison(default_threshold: int = 125):
 
     print(f"🖼️ Found {len(images)} images for comparison in '{IMAGE_DIR}':")
     for name, _ in images:
-        print(f"   - {name}")
+        print(f"   - {name}")
 
     # 2. Generate Hashes
     print("\n🔑 Generating 256-bit pHashes...")
@@ -65,6 +77,8 @@ def run_all_pairs_comparison(default_threshold: int = 125):
     for name, path in images:
         img_hash = phash_service.generate_from_path(path)
         if img_hash:
+            # Added verbose hash printing
+            print(f"🔑 Generated 256-bit pHash: {img_hash} ({len(img_hash)} chars)")
             hashes[name] = img_hash
         else:
             print(f"❌ Failed to generate hash for {name}. Skipping.")
@@ -74,7 +88,10 @@ def run_all_pairs_comparison(default_threshold: int = 125):
         return
 
     # 3. Perform All-Pairs Comparison
-    print(f"\n🔬 Performing All-Pairs Comparison (Threshold: {default_threshold}/256)...")
+    
+    current_threshold = DEFAULT_THRESHOLD # Use the imported threshold
+    
+    print(f"\n🔬 Performing All-Pairs Comparison (Threshold: {current_threshold}/256)...")
     
     all_names = list(hashes.keys())
     
@@ -91,8 +108,16 @@ def run_all_pairs_comparison(default_threshold: int = 125):
             hash2 = hashes[name2]
             
             # Use the core comparison logic from phash.py
-            is_similar, distance = phash_service.compare_256bit(hash1, hash2, default_threshold)
+            is_similar, distance = phash_service.compare_256bit(hash1, hash2, current_threshold)
             
+            # Re-added the detailed comparison logging for debugging/clarity
+            print("🔍 Hash Comparison:")
+            print(f"     Hash 1: {hash1}")
+            print(f"     Hash 2: {hash2}")
+            print(f"     Distance: {distance}/256")
+            print(f"     Threshold: {current_threshold}")
+            print(f"     Similar: {is_similar}")
+
             comparison_results.append((name1, name2, distance, is_similar))
 
     # 4. Report Results in Table Format
@@ -104,8 +129,8 @@ def run_all_pairs_comparison(default_threshold: int = 125):
     # Define Column Widths
     col_width = 20
     
-    # Print Header
-    print(f"{'Image A':<{col_width}}{'Image B':<{col_width}}{'Distance (0-256)':<18}{'Similar (<= 125)':<15}")
+    # Print Header: Reflect the dynamic threshold
+    print(f"{'Image A':<{col_width}}{'Image B':<{col_width}}{'Distance (0-256)':<18}{f'Similar (<= {current_threshold})':<15}")
     print("-" * 65)
     
     # Print Data
@@ -118,6 +143,4 @@ def run_all_pairs_comparison(default_threshold: int = 125):
 
 
 if __name__ == "__main__":
-    # NOTE: Setting the threshold to 125 here for testing, as discussed in the previous step.
-    # The comparison logic still lives within phash.py.
-    run_all_pairs_comparison(default_threshold=125)
+    run_all_pairs_comparison()

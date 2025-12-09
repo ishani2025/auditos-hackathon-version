@@ -58,7 +58,7 @@ class PhashService:
         if img.mode != 'L':
             img = img.convert('L')
         
-        phash_obj = imagehash.phash(img, hash_size=self.hash_size)
+        phash_obj = imagehash.dhash(img, hash_size=self.hash_size)
         hash_str = str(phash_obj)
         expected_len = 64 # 256 bits / 4 bits per hex char = 64 hex chars
         

@@ -4,28 +4,34 @@ DBP: Database for 256-bit pHash Storage and Duplicate Checking
 """
 
 import sqlite3
+import logging # <-- NEW: Logging for fraud attempts and errors
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple
 import os
 import sys
+
+# Set up logging for reporting fraud/errors
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # ========== FIX IMPORTS ==========
 current_dir = os.path.dirname(os.path.abspath(__file__))
 backend_dir = os.path.dirname(current_dir)
 sys.path.insert(0, backend_dir)
 
+# --- Define the desired default threshold here for consistency ---
+PHASH_DEFAULT_THRESHOLD = 130
+
 try:
     from services.phash import PhashService 
-    phash_service = PhashService() # This instance is 256-bit by default now
-    print("✅ Successfully imported 256-bit PhashService")
+    phash_service = PhashService() 
+    logging.info("✅ Successfully imported 256-bit PhashService")
 except ImportError as e:
-    # Mock service for 256-bit functionality
-    print(f"⚠️ Import Error: {e}")
+    logging.warning(f"⚠️ Import Error: {e}")
     
     class MockPhashService:
         @staticmethod
-        # THRESHOLD IS 130 HERE FOR CONSISTENCY
-        def compare_256bit(hash1, hash2, threshold=130): 
+        # Using the centralized constant for the mock service
+        def compare_256bit(hash1, hash2, threshold=PHASH_DEFAULT_THRESHOLD): 
             if not hash1 or not hash2:
                 return False, 256
             distance = sum(1 for a, b in zip(hash1, hash2) if a != b) * (256 / len(hash1)) if len(hash1) > 0 else 256
@@ -34,7 +40,7 @@ except ImportError as e:
         compare = compare_256bit
     
     phash_service = MockPhashService()
-    print("⚠️ Using mock phash_service (256-bit compatible)")
+    logging.warning("⚠️ Using mock phash_service (256-bit compatible)")
 # ========== END FIX ==========
 
 class PhashDatabase:
@@ -42,10 +48,13 @@ class PhashDatabase:
     Manages storage and retrieval of 256-bit image pHash fingerprints
     """
     
+    # NEW: Define the default threshold as a class constant for consistency
+    DEFAULT_THRESHOLD = PHASH_DEFAULT_THRESHOLD 
+    
     def __init__(self, db_path: str = "auditos_phashes.db"):
         self.db_path = db_path
         self.init_database()
-        print(f"✅ 256-bit pHash Database initialized: {db_path}")
+        logging.info(f"✅ 256-bit pHash Database initialized: {db_path}")
     
     def init_database(self):
         """Create the pHash database tables with proper column size for 256-bit"""
@@ -84,14 +93,14 @@ class PhashDatabase:
         
         # Validate: Must be 64 hex characters
         if not image_hash or len(image_hash) != 64:
-            print(f"❌ Invalid 256-bit hash length: {len(image_hash) if image_hash else 0} (expected 64)")
+            logging.error(f"❌ Invalid 256-bit hash length: {len(image_hash) if image_hash else 0} (expected 64)")
             return False
         
         # Validate: Must be hexadecimal
         try:
             int(image_hash, 16)
         except ValueError:
-            print(f"❌ Invalid hex string: {image_hash}")
+            logging.error(f"❌ Invalid hex string: {image_hash}")
             return False
         
         conn = sqlite3.connect(self.db_path)
@@ -112,24 +121,28 @@ class PhashDatabase:
             ))
             
             conn.commit()
-            print(f"💾 Stored 256-bit pHash for credit: {credit_id}")
-            print(f"   Hash: {image_hash}")
-            print(f"   Account: {account_id}")
+            # Log successful storage
+            logging.info(f"💾 Stored 256-bit pHash for credit: {credit_id}. Hash: {image_hash[:8]}... Account: {account_id}")
             return True
             
         except sqlite3.IntegrityError as e:
-            print(f"🚫 Database integrity error: {e}")
+            # Log Integrity Errors (duplicate credit_id or hash)
+            logging.error(f"🚫 Database Integrity Error (Hash/Credit ID collision): {e}. Hash: {image_hash[:8]}...")
             return False
         except Exception as e:
-            print(f"❌ Error storing 256-bit hash: {e}")
+            logging.error(f"❌ Error storing 256-bit hash: {e}")
             return False
         finally:
             conn.close()
     
     def check_duplicate_256bit(self, new_hash: str, account_id: str = None,
-                              threshold: int = 130) -> Dict: # <--- FIX: THRESHOLD CHANGED TO 130
+                              threshold: int = None) -> Dict:
         """Check if an image is duplicate using 256-bit pHash"""
         
+        # Use instance-specific threshold if provided, otherwise use the class default
+        if threshold is None:
+            threshold = self.DEFAULT_THRESHOLD
+            
         # Validate: Must be 64 hex characters
         if not new_hash or len(new_hash) != 64:
             return {
@@ -155,7 +168,7 @@ class PhashDatabase:
             stored_records = cursor.fetchall()
             total_checked = len(stored_records)
             
-            print(f"🔍 Checking against {total_checked} stored 256-bit hashes")
+            logging.info(f"🔍 Checking {new_hash[:8]}... against {total_checked} stored hashes (Threshold: {threshold})")
             
             duplicates_found = []
             
@@ -167,6 +180,10 @@ class PhashDatabase:
                 is_similar, distance = phash_service.compare_256bit(new_hash, stored_hash, threshold)
                 
                 if is_similar:
+                    
+                    # --- NEW: Logging potential fraud (near-duplicate match) ---
+                    logging.warning(f"🚫 Potential Fraud Detected (Distance: {distance}). New Hash: {new_hash[:8]}... matches Credit: {stored_credit}")
+                    
                     duplicates_found.append({
                         "credit_id": stored_credit,
                         "hash": stored_hash,
@@ -189,7 +206,7 @@ class PhashDatabase:
                     "all_matches": duplicates_found
                 }
             else:
-                print(f"✅ No 256-bit duplicates found (checked {total_checked} images)")
+                logging.info(f"✅ No 256-bit duplicates found for {new_hash[:8]}...")
                 return {
                     "is_duplicate": False,
                     "total_checked": total_checked,
@@ -197,7 +214,7 @@ class PhashDatabase:
                 }
                 
         except Exception as e:
-            print(f"❌ Error checking 256-bit duplicates: {e}")
+            logging.error(f"❌ Fatal Error checking 256-bit duplicates: {e}")
             return {
                 "is_duplicate": False,
                 "error": str(e),
