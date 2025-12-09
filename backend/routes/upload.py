@@ -81,7 +81,7 @@ except ImportError as e:
 
 # Try to import pHash service
 try:
-    from services.phash import phash_service
+    from services.dhash import phash_service
     FINGERPRINTER_AVAILABLE = True
     print("✅ pHash service loaded")
 except ImportError as e:

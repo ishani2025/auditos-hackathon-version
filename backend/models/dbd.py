@@ -22,7 +22,7 @@ sys.path.insert(0, backend_dir)
 PHASH_DEFAULT_THRESHOLD = 130
 
 try:
-    from services.phash import PhashService 
+    from services.dhash import PhashService 
     phash_service = PhashService() 
     logging.info("✅ Successfully imported 256-bit PhashService")
 except ImportError as e:

@@ -13,10 +13,10 @@ sys.path.insert(0, backend_dir)
 # --- Direct Imports of Services and Models ---
 try:
     # Import the service for hashing
-    from services.phash import phash_service 
+    from services.dhash import phash_service 
     # Import the database model to get the configured default threshold
     # NOTE: Assuming 'models.dbp' contains a class 'PhashDatabase' with 'DEFAULT_THRESHOLD'
-    from models.dbp import PhashDatabase 
+    from models.dbd import PhashDatabase 
     
     # Use the threshold defined in the database model
     DEFAULT_THRESHOLD = PhashDatabase.DEFAULT_THRESHOLD
