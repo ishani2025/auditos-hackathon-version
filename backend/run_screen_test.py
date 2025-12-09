@@ -1,4 +1,4 @@
-from models.detect_screen import screen_detector
+from services.detect_screen import screen_detector
 
 def main():
     image_path = "images/test1.jpeg"
