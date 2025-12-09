@@ -1,7 +1,7 @@
 from services.detect_screen import screen_detector
 
 def main():
-    image_path = "images/test1.jpeg"
+    image_path = "images/trashpica.jpeg"
     print(f"🔎 Running screen detection on: {image_path}")
     
     result = screen_detector.detect(image_path)
