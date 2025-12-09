@@ -165,24 +165,3 @@ class PhashService:
 
 # Create a global instance for easy import (now 256-bit)
 phash_service = PhashService()
-
-def test_phash_service_256bit():
-    """Simple test to confirm 256-bit generation is working."""
-    print("🧪 Testing 256-bit pHash Service Initialization...")
-    print("=" * 60)
-    
-    from io import BytesIO
-    temp_img = Image.new('RGB', (100, 100), color = 'red')
-    
-    with BytesIO() as f:
-        temp_img.save(f, format='JPEG')
-        image_bytes = f.getvalue()
-        test_hash = phash_service.generate_from_bytes(image_bytes)
-    
-    if test_hash and len(test_hash) == 64: # Check for 64 chars
-        print(f"✅ Success: Generated hash has correct 64-character length: {test_hash}")
-    else:
-        print(f"❌ Failure: Hash length is incorrect or generation failed. Length: {len(test_hash) if test_hash else 'None'}")
-
-if __name__ == "__main__":
-    test_phash_service_256bit()
