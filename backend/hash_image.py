@@ -1,1 +1,0 @@
-# Create unique fingerprint of image
