@@ -1,180 +1,123 @@
-# test_real_images.py
-"""
-Test pHash with REAL images from your device, loaded from a directory.
-"""
+# C:\Users\svars\auditos\auditos\backend\test_all_pairs_comparison.py
 
 import sys
 import os
 import glob
-from PIL import Image, ImageDraw
-import tempfile
-import shutil
+from typing import List, Tuple, Dict
 
-# Add backend to path (assuming your structure is correct)
-sys.path.insert(0, os.path.join(os.getcwd(), 'backend'))
+# --- Setup Path ---
+current_dir = os.path.dirname(os.path.abspath(__file__))
+backend_dir = current_dir
+sys.path.insert(0, backend_dir)
 
-# Placeholder for phash_service, replace with your actual import
-# Assuming a structure like:
-# .
-# ├── backend
-# │   └── services
-# │       └── phash.py
-# └── test_real_images.py
-#
-# from services.phash import phash_service 
-# Since I cannot run your environment, I will use a dummy service
-# You MUST replace this block with your actual phash_service import:
-class DummyPhashService:
-    @staticmethod
-    def generate_from_path(path):
-        # Dummy implementation: returns a hash based on file size for testing logic
-        size = os.path.getsize(path)
-        return f"{size:016x}"
-
-    @staticmethod
-    def compare(hash1, hash2, threshold=10):
-        # Dummy Hamming Distance for testing logic (based on hash length difference)
-        distance = abs(len(hash1) - len(hash2)) 
-        return distance <= threshold, distance
-
+# --- Direct Imports of Services ---
 try:
-    # Attempt to use the actual service if available
-    from services.phash import phash_service
-except ImportError:
-    # Fallback to the dummy service if the environment is not set up
-    print("⚠️ WARNING: Could not import real phash_service. Using dummy service.")
-    phash_service = DummyPhashService()
-# --- End of phash_service placeholder ---
+    from services.phash import phash_service 
+    # NOTE: We DO NOT import dbp.py, as we are only testing phash comparison logic here.
+except ImportError as e:
+    print(f"❌ ERROR: Could not import phash_service. Check paths and dependencies.")
+    print(f"Details: {e}")
+    sys.exit(1)
 
-def get_image_paths_from_directory(directory_path='images'):
-    """
-    Scans a directory for common image file types and returns their paths.
-    """
-    
-    # Ensure the directory exists
+# --- Configuration ---
+IMAGE_DIR = os.path.join(backend_dir, 'images')
+
+# --- Helper Functions ---
+def get_all_test_images(directory_path) -> List[Tuple[str, str]]:
+    """Scans the directory and returns a list of (file_name, file_path) tuples."""
     if not os.path.isdir(directory_path):
         print(f"❌ Image directory not found: {directory_path}")
-        print("Please create this folder and place your images inside.")
         return []
 
-    # Supported file extensions
     extensions = ['*.jpg', '*.jpeg', '*.png', '*.bmp', '*.tiff']
     image_paths = []
     
-    print(f"📁 Scanning directory: {os.path.abspath(directory_path)}")
-
     for ext in extensions:
-        # Use glob to find all files matching the pattern
-        full_pattern = os.path.join(directory_path, ext)
-        # Using sorted for deterministic order
-        image_paths.extend(sorted(glob.glob(full_pattern)))
-        
-    if not image_paths:
-        print("💡 No images found. Please check the directory and file extensions.")
+        image_paths.extend(glob.glob(os.path.join(directory_path, ext)))
     
-    return image_paths
+    # Return (filename, full_path) for cleaner output
+    return [(os.path.basename(p), p) for p in sorted(image_paths)]
 
-def test_with_generated_images():
-    """Test with programmatically created images (keep for isolated testing)"""
-    print("🧪 Testing pHash with generated images...")
-    print("=" * 60)
-    
-    # Create temporary directory
-    temp_dir = tempfile.mkdtemp()
-    
-    # Test 1: Two identical images
-    print("\n🔍 Test 1: Two IDENTICAL images")
-    # ... (rest of the identical image test logic) ...
-    # Simplified creation for identical test
-    img1_path = os.path.join(temp_dir, "identical1.jpg")
-    img2_path = os.path.join(temp_dir, "identical2.jpg")
-    img = Image.new('RGB', (800, 600), color='green')
-    draw = ImageDraw.Draw(img)
-    draw.text((100, 100), "Trash Pile #001", fill='white')
-    img.save(img1_path)
-    img.save(img2_path) # Save same content again
-    
-    hash1 = phash_service.generate_from_path(img1_path)
-    hash2 = phash_service.generate_from_path(img2_path)
-    print(f"   Image 1 Hash: {hash1}")
-    print(f"   Image 2 Hash: {hash2}")
-    similar, distance = phash_service.compare(hash1, hash2)
-    print(f"   Distance: {distance}, Similar: {similar}")
-    print(f"   Result: {'✅ IDENTICAL' if distance == 0 else '⚠️ Different'}")
-    
-    # ... (Test 2: Similar images and Test 3: Different images logic) ...
-    
-    # Cleanup (moved to the end of test_with_generated_images)
-    try:
-        shutil.rmtree(temp_dir)
-    except Exception as e:
-        print(f"Cleanup failed: {e}")
 
-    print("\n" + "=" * 60)
-    print("✅ Generated images test completed!")
-
-def test_with_your_images(image_paths):
-    """Test with your own images"""
-    print("\n🧪 Testing with YOUR images...")
-    print("=" * 60)
+def run_all_pairs_comparison(default_threshold: int = 125):
+    """
+    Executes the comprehensive all-pairs 256-bit pHash comparison.
+    """
     
-    if not image_paths:
-        print("💡 No images found in the specified directory. Skipping comparison.")
+    print("🧪 Testing All-Pairs 256-bit pHash Comparison (Service Layer Only)")
+    print("=" * 65)
+    
+    # 1. Load Files
+    images = get_all_test_images(IMAGE_DIR)
+    
+    if len(images) < 2:
+        print(f"❌ Need at least 2 images in '{IMAGE_DIR}' for comparison!")
+        sys.exit(1)
+
+    print(f"🖼️ Found {len(images)} images for comparison in '{IMAGE_DIR}':")
+    for name, _ in images:
+        print(f"   - {name}")
+
+    # 2. Generate Hashes
+    print("\n🔑 Generating 256-bit pHashes...")
+    hashes: Dict[str, str] = {} # {filename: hash_string}
+    
+    for name, path in images:
+        img_hash = phash_service.generate_from_path(path)
+        if img_hash:
+            hashes[name] = img_hash
+        else:
+            print(f"❌ Failed to generate hash for {name}. Skipping.")
+
+    if len(hashes) != len(images):
+        print("❌ Hashing failed for one or more images. Stopping.")
         return
-        
-    hashes = []
-    
-    for i, img_path in enumerate(image_paths, 1):
-        try:
-            hash_str = phash_service.generate_from_path(img_path)
-            if hash_str:
-                hashes.append((img_path, hash_str))
-                print(f"📸 Image {i}: {os.path.basename(img_path)}")
-                print(f"   Hash: {hash_str}")
-                print(f"   Size: {os.path.getsize(img_path)} bytes")
-        except Exception as e:
-            print(f"❌ Error processing {img_path}: {e}")
-    
-    # Compare all combinations
-    if len(hashes) >= 2:
-        print("\n🔍 Comparing images...")
-        for i in range(len(hashes)):
-            for j in range(i+1, len(hashes)):
-                img1, hash1 = hashes[i]
-                img2, hash2 = hashes[j]
-                
-                similar, distance = phash_service.compare(hash1, hash2)
-                
-                print(f"\n   {os.path.basename(img1)} vs {os.path.basename(img2)}:")
-                print(f"   Distance: {distance}")
-                print(f"   Similar: {similar}")
-                
-                if distance == 0:
-                    print(f"   ⚠️  WARNING: Images are IDENTICAL!")
-                elif similar:
-                    print(f"   ⚠️  WARNING: Images are SIMILAR (possible duplicate)")
-                else:
-                    print(f"   ✅ Images are UNIQUE")
 
-def main():
-    """Main test function"""
-    print("🖼️  REAL IMAGE pHash TESTER")
-    print("=" * 60)
+    # 3. Perform All-Pairs Comparison
+    print(f"\n🔬 Performing All-Pairs Comparison (Threshold: {default_threshold}/256)...")
     
-    # Run the automated tests first
-    test_with_generated_images()
+    all_names = list(hashes.keys())
     
-    # --- Load your real images from the directory ---
-    IMAGE_DIR = 'backend/images'
-    print(f"\n--- Testing with Real Images from **./{IMAGE_DIR}** ---")
+    # Prepare results for structured output
+    comparison_results: List[Tuple[str, str, int, bool]] = []
     
-    # 1. Get the list of images from the directory
-    your_images_paths = get_image_paths_from_directory(IMAGE_DIR)
+    for i in range(len(all_names)):
+        name1 = all_names[i]
+        hash1 = hashes[name1]
+        
+        # Compare with all images from i onwards (including self-to-self)
+        for j in range(i, len(all_names)):
+            name2 = all_names[j]
+            hash2 = hashes[name2]
+            
+            # Use the core comparison logic from phash.py
+            is_similar, distance = phash_service.compare_256bit(hash1, hash2, default_threshold)
+            
+            comparison_results.append((name1, name2, distance, is_similar))
+
+    # 4. Report Results in Table Format
     
-    # 2. Run the comparison test
-    test_with_your_images(your_images_paths)
+    print("\n" + "=" * 65)
+    print("ALL-PAIRS COMPARISON RESULTS")
+    print("-" * 65)
     
-    print("\n✅ Real image testing completed!")
+    # Define Column Widths
+    col_width = 20
+    
+    # Print Header
+    print(f"{'Image A':<{col_width}}{'Image B':<{col_width}}{'Distance (0-256)':<18}{'Similar (<= 125)':<15}")
+    print("-" * 65)
+    
+    # Print Data
+    for name1, name2, distance, is_similar in comparison_results:
+        status = "✅ YES" if is_similar else "❌ NO"
+        print(f"{name1:<{col_width}}{name2:<{col_width}}{distance:<18}{status:<15}")
+
+    print("=" * 65)
+    print("✅ All-Pairs Comparison Test Complete.")
+
 
 if __name__ == "__main__":
-    main()
+    # NOTE: Setting the threshold to 125 here for testing, as discussed in the previous step.
+    # The comparison logic still lives within phash.py.
+    run_all_pairs_comparison(default_threshold=125)
