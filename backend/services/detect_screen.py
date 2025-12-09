@@ -17,7 +17,7 @@ class ScreenFraudDetector:
       -> Detects pixel grids. Now includes 'Spike Ratio' to ignore woven bags.
     """
 
-    def __init__(self, blur_threshold: float = 50.0, fft_threshold: float =15.0):
+    def __init__(self, blur_threshold: float = 50.0, fft_threshold: float =100.0):
         # Increased blur_threshold to 50.0 to safely categorize the bag (Score ~28) as "Low Texture"
         self.blur_threshold = blur_threshold
         self.fft_threshold = fft_threshold
