@@ -18,6 +18,33 @@ import cv2
 import numpy as np
 
 class ScreenFraudDetector:
+    """
+    PARAMETER GUIDE:
+    
+    blur_threshold (20.0):
+        Laplacian variance below which image is considered low-texture.
+        Images with score < 20 skip FFT analysis entirely.
+        TYPICAL VALUES: Flat screens: <10, Blurry real: 20-100, Sharp real: 100+
+    
+    fft_score_threshold (50.0):
+        Minimum FFT prominence required to consider a peak significant.
+        Prominence = peak_height - mean_background_noise.
+        TYPICAL VALUES: Screens: 50-200+, Printed text: 20-40
+    
+    spike_ratio_threshold (1.25):
+        Ratio of peak height to surrounding neighborhood average.
+        Sharp pixel grid spikes have ratio > 1.25.
+        Printed text patterns have ratio closer to 1.0 (gradual hills).
+    
+    peak_count_threshold (2):
+        Minimum number of distinct peaks needed to signal a grid pattern.
+        Screens show multiple repeating peaks, single peaks may be noise.
+    
+    channel_overlap_threshold (0.4):
+        Fraction of peaks that must appear across multiple color channels.
+        Real screens show same pattern in R, G, B channels.
+        Printed text often appears in only 1-2 channels.
+    """
     def __init__(
         self,
         blur_threshold: float = 20.0,
@@ -41,6 +68,14 @@ class ScreenFraudDetector:
         self.channel_overlap_threshold = channel_overlap_threshold
 
     def detect(self, image_path: str, metadata: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """
+           MAIN DETECTION PIPELINE:
+           1. Load and validate image
+           2. Laplacian texture analysis (fast filter)
+           3. Multi-channel FFT analysis (detailed)
+           4. Decision logic combining multiple signals
+        5. Return comprehensive result with debug info
+        """
         result = {
             "fraud_detected": False,
             "score": 0.0,         # Laplacian
