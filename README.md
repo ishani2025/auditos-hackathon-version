@@ -11,7 +11,7 @@ AuditOS is a rule-driven fraud detection system that authenticates real-world wa
 Most EPR credit systems rely on manual proofs (photos, invoices, GPS notes), which are easy to fake. Credits can be fraudulently generated using:
 - Duplicate images of the same waste
 - Screenshots or photos of screens
-- Fake or spoofed GPS coordinates
+- Verification of Location
 - Photos taken from the internet
 - Reused media across different locations
 
@@ -46,10 +46,7 @@ Only proofs that pass all checks are marked **APPROVED** and eligible for credit
 - SQLite (audit trails)
 
 ### 🌐 Frontend (Hackathon Prototype)
-- HTML + CSS + Vanilla JavaScript
-- Webcam Capture: `getUserMedia()`
-- Geolocation API: `navigator.geolocation`
-- `fetch()` + `FormData` uploads to Flask
+- Android Studio
 
 ### 🚀 Roadmap (Post-Hackathon)
 | Phase | Upgrade |
