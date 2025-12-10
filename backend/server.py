@@ -1,6 +1,6 @@
-# backend/server.py - ADD JUST THESE 3 LINES
+# backend/server.py 
 from flask import Flask, jsonify
-from flask_cors import CORS  # <-- ADD THIS LINE
+from flask_cors import CORS 
 import os, sys
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -14,7 +14,7 @@ except Exception as e:
     uploaded = False
 
 app = Flask(__name__)
-CORS(app)  # <-- ADD THIS LINE (enables Android connections)
+CORS(app)  
 
 if upload_bp:
     app.register_blueprint(upload_bp, url_prefix="/")

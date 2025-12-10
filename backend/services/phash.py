@@ -44,7 +44,7 @@ class PurePhashService:
         self.img_size = hash_size * 4            
         self.total_bits = hash_size * hash_size  
         self.hex_len = self.total_bits // 4      
-        self.default_threshold = 130
+        self.default_threshold = 120
 
     # -------------------------------------------------
     # HASH GENERATION

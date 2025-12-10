@@ -20,7 +20,7 @@ backend_dir = os.path.dirname(current_dir)
 sys.path.insert(0, backend_dir)
 
 # Default threshold for pure pHash comparisons
-PHASH_DEFAULT_THRESHOLD = 130   
+PHASH_DEFAULT_THRESHOLD = 120
 
 # ---------------------------------------------------------
 # IMPORT PURE PHASH SERVICE SAFELY
