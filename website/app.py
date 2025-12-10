@@ -8,7 +8,7 @@ from flask import Flask, render_template, request, jsonify, send_from_directory
 import os
 import uuid
 import shutil
-import datetime  # CHANGED: Import entire module
+import datetime
 import sys
 
 # Add backend to path
@@ -65,8 +65,13 @@ def upload():
         # Run fraud detection
         results = run_fraud_detection(filepath, filename)
         
-        # Also copy to images folder for dHash comparisons
-        shutil.copy(filepath, f"website/static/images/{filename}")
+        # Only copy to images folder if fraud detection passes
+        if not results["final_verdict"]["fraud"]:
+            images_path = f"website/static/images/{filename}"
+            shutil.copy(filepath, images_path)
+            print(f"✅ Image added to database: {filename}")
+        else:
+            print(f"❌ Fraud detected - image NOT added to database: {filename}")
         
         return jsonify(results)
         
@@ -79,16 +84,21 @@ def run_fraud_detection(image_path, filename):
     results = {
         "filename": filename,
         "image_url": f"/static/uploads/{filename}",
-        "timestamp": datetime.datetime.now().isoformat(),  # FIXED: datetime.datetime.now()
+        "timestamp": datetime.datetime.now().isoformat(),
         "checks": {}
     }
+    
+    # Track fraud status
+    fraud_detected_moire = False
+    fraud_detected_dhash = False
     
     # 1. MOIRÉ DETECTION (Screen Fraud)
     if BACKEND_AVAILABLE:
         print("🔍 Running Moiré Detection...")
         moire_result = screen_detector.detect(image_path)
+        fraud_detected_moire = moire_result["fraud_detected"]
         results["checks"]["moire_detection"] = {
-            "fraud_detected": moire_result["fraud_detected"],
+            "fraud_detected": fraud_detected_moire,
             "score": moire_result["score"],
             "fft_score": moire_result["fft_score"],
             "reason": moire_result["reason"],
@@ -124,21 +134,25 @@ def run_fraud_detection(image_path, filename):
             # Check against ALL images in database
             duplicate_result = phash_db.check_duplicate_256bit(new_hash)
             
+            fraud_detected_dhash = duplicate_result.get("is_duplicate", False)
             results["checks"]["dhash_duplicate"] = {
-                "is_duplicate": duplicate_result.get("is_duplicate", False),
+                "is_duplicate": fraud_detected_dhash,
                 "total_checked": duplicate_result.get("total_checked", 0),
                 "duplicates_found": duplicate_result.get("duplicates_found", 0),
                 "closest_distance": duplicate_result.get("closest_match", {}).get("distance", 256) if duplicate_result.get("closest_match") else 256,
                 "verdict": "🚫 DUPLICATE" if duplicate_result.get("is_duplicate") else "✅ UNIQUE"
             }
             
-            # Store in database if unique
-            if not duplicate_result.get("is_duplicate"):
-                credit_id = f"DEMO_CREDIT_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"  # FIXED
+            # Store in database if unique AND moiré detection passed
+            if not fraud_detected_dhash and not fraud_detected_moire:
+                credit_id = f"DEMO_CREDIT_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
                 phash_db.store_256bit_hash(
                     new_hash, credit_id, "demo_website", image_path, os.path.getsize(image_path)
                 )
                 results["credit_id"] = credit_id
+                print(f"📊 dHash stored in database for credit: {credit_id}")
+            else:
+                print(f"⚠️ dHash NOT stored - fraud detected (moire: {fraud_detected_moire}, dhash: {fraud_detected_dhash})")
         else:
             results["checks"]["dhash_duplicate"] = {
                 "error": "Failed to generate dHash",
@@ -151,37 +165,83 @@ def run_fraud_detection(image_path, filename):
         }
     
     # 3. FINAL VERDICT
-    fraud_detected = False
-    for check in results["checks"].values():
-        if check.get("fraud_detected") or check.get("is_duplicate"):
-            fraud_detected = True
-            break
+    fraud_detected = fraud_detected_moire or fraud_detected_dhash
     
     results["final_verdict"] = {
         "fraud": fraud_detected,
         "status": "🚫 REJECTED - FRAUD DETECTED" if fraud_detected else "✅ ACCEPTED - EPR CREDIT ISSUED",
-        "color": "danger" if fraud_detected else "success"
+        "color": "danger" if fraud_detected else "success",
+        "moire_fraud": fraud_detected_moire,
+        "dhash_fraud": fraud_detected_dhash
     }
     
     return results
 
-# Get all uploaded images
-@app.route('/images')
-def get_images():
-    """Get list of all uploaded images"""
-    images = []
+# Get recent uploads (temporary uploads folder)
+@app.route('/uploads')
+def get_uploads():
+    """Get list of recent uploads (temporary folder)"""
+    uploads = []
     upload_dir = app.config['UPLOAD_FOLDER']
     
     if os.path.exists(upload_dir):
+        # Get files sorted by modification time (newest first)
+        files = []
         for filename in os.listdir(upload_dir):
             if filename.lower().endswith(('.png', '.jpg', '.jpeg', '.gif')):
-                images.append({
+                filepath = os.path.join(upload_dir, filename)
+                files.append({
                     "name": filename,
-                    "url": f"/static/uploads/{filename}",
-                    "size": os.path.getsize(os.path.join(upload_dir, filename))
+                    "path": filepath,
+                    "mtime": os.path.getmtime(filepath)
                 })
+        
+        # Sort by modification time, newest first
+        files.sort(key=lambda x: x["mtime"], reverse=True)
+        
+        # Return only the 20 most recent
+        for file_info in files[:20]:
+            uploads.append({
+                "name": file_info["name"],
+                "url": f"/static/uploads/{file_info['name']}",
+                "size": os.path.getsize(file_info["path"]),
+                "uploaded": datetime.datetime.fromtimestamp(file_info["mtime"]).strftime('%Y-%m-%d %H:%M:%S')
+            })
     
-    return jsonify({"images": images})
+    return jsonify({"uploads": uploads})
+
+# Get database images (accepted images)
+@app.route('/database')
+def get_database():
+    """Get list of accepted images in database"""
+    images = []
+    images_dir = 'website/static/images'
+    
+    if os.path.exists(images_dir):
+        # Get files sorted by modification time (newest first)
+        files = []
+        for filename in os.listdir(images_dir):
+            if filename.lower().endswith(('.png', '.jpg', '.jpeg', '.gif')):
+                filepath = os.path.join(images_dir, filename)
+                files.append({
+                    "name": filename,
+                    "path": filepath,
+                    "mtime": os.path.getmtime(filepath)
+                })
+        
+        # Sort by modification time, newest first
+        files.sort(key=lambda x: x["mtime"], reverse=True)
+        
+        # Return all database images
+        for file_info in files:
+            images.append({
+                "name": file_info["name"],
+                "url": f"/static/images/{file_info['name']}",
+                "size": os.path.getsize(file_info["path"]),
+                "accepted": datetime.datetime.fromtimestamp(file_info["mtime"]).strftime('%Y-%m-%d %H:%M:%S')
+            })
+    
+    return jsonify({"database": images})
 
 # Get fraud logs
 @app.route('/logs')
@@ -192,6 +252,28 @@ def get_logs():
         return jsonify({"logs": logs})
     return jsonify({"logs": []})
 
+# Clean up old uploads (optional endpoint)
+@app.route('/cleanup', methods=['POST'])
+def cleanup_uploads():
+    """Clean up uploads older than 24 hours"""
+    try:
+        upload_dir = app.config['UPLOAD_FOLDER']
+        cutoff_time = datetime.datetime.now() - datetime.timedelta(hours=24)
+        cleaned = 0
+        
+        if os.path.exists(upload_dir):
+            for filename in os.listdir(upload_dir):
+                filepath = os.path.join(upload_dir, filename)
+                if os.path.isfile(filepath):
+                    file_mtime = datetime.datetime.fromtimestamp(os.path.getmtime(filepath))
+                    if file_mtime < cutoff_time:
+                        os.remove(filepath)
+                        cleaned += 1
+        
+        return jsonify({"status": "success", "cleaned": cleaned})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 # Static files
 @app.route('/static/<path:filename>')
 def static_files(filename):
@@ -201,5 +283,11 @@ if __name__ == '__main__':
     print("🚀 AUDITOS DEMO WEBSITE STARTING...")
     print("🌐 Open: http://localhost:5001")
     print("📸 Upload images to test fraud detection")
+    print("📁 Recent uploads (temporary): /static/uploads/")
+    print("✅ Accepted images (database): /static/images/")
+    print("🔗 Endpoints:")
+    print("   - /uploads    : Recent uploads (temporary)")
+    print("   - /database   : Accepted images (database)")
+    print("   - /logs       : Fraud detection logs")
     print("=" * 50)
     app.run(debug=True, host='0.0.0.0', port=5001)
