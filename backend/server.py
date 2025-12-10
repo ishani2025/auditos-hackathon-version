@@ -1,83 +1,28 @@
-# Flask app setup and routing# backend/server.py
-from flask import Flask, jsonify, request
-import os
+# backend/server.py
+from flask import Flask, jsonify
+import os, sys
 
-# Create Flask app
+current_dir = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, current_dir)
+
+try:
+    from routes.upload import upload_bp
+    uploaded = True
+except Exception as e:
+    upload_bp = None
+    uploaded = False
+
 app = Flask(__name__)
+if upload_bp:
+    app.register_blueprint(upload_bp, url_prefix="/")
 
-# Route 1: Home page - check if server is running
-@app.route('/')
+@app.route("/")
 def home():
-    return jsonify({
-        "message": "AuditOS Backend is running!",
-        "status": "ok",
-        "endpoints": {
-            "GET /": "This page",
-            "GET /health": "Health check",
-            "POST /upload": "Upload image (demo)",
-            "GET /test": "Test endpoint"
-        }
-    })
+    return jsonify({"message":"AuditOS Backend running", "upload_route": "active" if uploaded else "missing"})
 
-# Route 2: Health check
-@app.route('/health')
-def health():
-    return jsonify({"status": "healthy"})
-
-# Route 3: Test upload (simplest version)
-@app.route('/upload', methods=['POST'])
-def upload():
-    """
-    Simple upload endpoint
-    Expects: JSON with image data (we'll make it simple)
-    """
-    try:
-        # Get data from request (for now, just text)
-        data = request.get_json()
-        
-        if not data:
-            return jsonify({
-                "error": "No data received",
-                "tip": "Send JSON with 'image_name' field"
-            }), 400
-        
-        # Simple response
-        return jsonify({
-            "status": "success",
-            "message": "Image received! (demo mode)",
-            "received_data": data,
-            "credit_id": "DEMO_001",
-            "fraud_detected": False
-        })
-        
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-# Route 4: Test endpoint (GET request)
-@app.route('/test')
+@app.route("/test")
 def test():
-    return jsonify({
-        "message": "Backend is working!",
-        "next_step": "Send POST request to /upload with JSON",
-        "example": {
-            "image_name": "trash_pile.jpg",
-            "latitude": 12.9716,
-            "longitude": 77.5946
-        }
-    })
+    return jsonify({"ok": True, "upload_route": uploaded})
 
-# Run the server
-if __name__ == '__main__':
-    port = 5000
-    print("=" * 50)
-    print("🚀 Starting AuditOS Backend...")
-    print(f"📡 Server will run at: http://localhost:{port}")
-    print("=" * 50)
-    print("\n📝 Try these URLs in your browser:")
-    print(f"1. http://localhost:{port}/")
-    print(f"2. http://localhost:{port}/health")
-    print(f"3. http://localhost:{port}/test")
-    print("\n⚡ To test upload endpoint, use the test.py script")
-    print("=" * 50)
-    
-    app.run(debug=True, port=port)
+if __name__ == "__main__":
+    app.run(debug=True, host="0.0.0.0", port=5000)

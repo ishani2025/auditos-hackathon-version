@@ -1,1 +1,0 @@
-// Send image to backend, get response

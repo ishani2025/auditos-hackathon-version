@@ -1,1 +1,0 @@
-// Check real location, prevent spoofing

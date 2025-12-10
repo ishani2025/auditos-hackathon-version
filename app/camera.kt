@@ -1,1 +1,0 @@
-// Take photo, save with metadata
