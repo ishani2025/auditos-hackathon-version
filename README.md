@@ -71,6 +71,9 @@ Only proofs that pass all checks are marked **APPROVED** and eligible for credit
 5. `/submissions` shows full audit log with flags.
 
 ---
+## DEMO VIDEOS:
+Video Link 1:https://drive.google.com/file/d/1QxLmUKx8n-OsjqB15RbA9McViJPStaV_/view?usp=sharing
+Video Link 2:https://drive.google.com/file/d/1ueVGa_-TNn74Y-3snabs0tEv1j2pWPJQ/view?usp=sharing
 
 ## 📌 API Overview
 
@@ -130,6 +133,4 @@ Open for collaboration and research contributions post-hackathon.
 
 🌍 Impact Vision
 AuditOS enforces provable recycling compliance by ensuring that every claimed credit corresponds to traceable, genuine waste. With explainable fraud controls before AI integration, it enables transparent, scalable and trustworthy circular-economy reporting.
-DEMO VIDEOS:
-Video Link 1:https://drive.google.com/file/d/1QxLmUKx8n-OsjqB15RbA9McViJPStaV_/view?usp=sharing
-Video Link 2:https://drive.google.com/file/d/1ueVGa_-TNn74Y-3snabs0tEv1j2pWPJQ/view?usp=sharing
+
